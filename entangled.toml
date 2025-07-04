@@ -1,0 +1,7 @@
+version = "2.0"
+watch_list = ["atntest.md"]
+
+[[languages]]
+name = "6502 assembly"
+identifiers = ["asm6502"]
+comment = { open = ";" }
