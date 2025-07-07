@@ -412,4 +412,57 @@ Let's put together our whole source file.
 <<subrs>>
 ```
 
+CA65 requires a linker config file.
+
+```{.cfg file=atntest.cfg}
+MEMORY {
+    PRG_ADDR: start = $0000, size = 2;
+    RAM: start = $801, size = $97FF;
+    ZEROPAGE: start = $FB, size = 4, file = "";
+}
+
+SEGMENTS {
+    ZEROPAGE: load = ZEROPAGE, type = zp;
+    PRG_ADDR: load = PRG_ADDR, type = ro;
+    BASIC_HEADER: load = RAM, type = ro;
+    CODE: load = RAM, type = ro;
+    RODATA: load = RAM, type = ro;
+    DATA: load = RAM, type = rw;
+    BSS: load = RAM, type = bss, define = yes;
+}
+```
+
+We need to insert the boot header.
+
+```{.asm6502 file=boot.s}
+    .segment "PRG_ADDR"
+    .word $801
+    .segment "BASIC_HEADER"
+    .word null_line
+    .word 10
+    .byte $9E,"2061",0
+null_line:
+    .word 0
+    .assert *=2061,error,"bad BASIC header"
+    .import Start
+    jmp Start
+```
+
+Let's make our Makefile:
+
+```{.make file=Makefile}
+OBJECTS = boot.o atntest.o
+
+all: atntest.prg
+
+clean:
+	rm -f atntest.prg atntest.ll $(OBJECTS)
+
+atntest.prg atntest.ll: $(OBJECTS) atntest.cfg
+	ld65 -o atntest.prg -C atntest.cfg $(OBJECTS)
+
+%.o: %.s
+	ca65 -o $@ $*.s
+```
+
 ## Conclusion

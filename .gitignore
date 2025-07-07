@@ -1,2 +1,5 @@
 /.entangled
 /.vscode
+/boot.o
+/atntest.o
+/atntest.prg

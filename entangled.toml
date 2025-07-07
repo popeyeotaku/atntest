@@ -5,3 +5,8 @@ watch_list = ["atntest.md"]
 name = "6502 assembly"
 identifiers = ["asm6502"]
 comment = { open = ";" }
+
+[[languages]]
+name = "LD65 Linker Config"
+identifiers = ["cfg"]
+comment = { open = "#" }
