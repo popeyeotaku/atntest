@@ -395,6 +395,25 @@ old_irq: .res 2
     .export old_irq
 ```
 
+#### Low Level Routines
+
+Let's start with the easy stuff, the Wait routines. They wait in microseconds, and the CPU clock is conveniently measured in those! Althought, it takes 12 cycles/microseconds to get in and out of a subroutine.
+
+```{.asm6502 #subrs}
+    .export Wait60Us
+.proc Wait60Us
+    ; 6 cycles to JSR here
+    ldy #9      ; +2 cycles=8
+loop:
+    dey         ; +2 cyles
+    bne loop    ; +3 cyles while taken, +2 when falling thru
+    ; we ran the loop 9 times, the first 8 took 5 cycles, the last took 4.
+    ; 8+8*5+4=52
+    nop         ; +2 cycles=54
+    rts         ; +6 cycles = 60
+.endproc
+```
+
 ## Building
 
 Let's put together our whole source file.

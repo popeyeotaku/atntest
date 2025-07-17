@@ -255,4 +255,18 @@ WriteDone:
     rts
 .endproc
 ; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[2]
+    .export Wait60Us
+.proc Wait60Us
+    ; 6 cycles to JSR here
+    ldy #9      ; +2 cycles=8
+loop:
+    dey         ; +2 cyles
+    bne loop    ; +3 cyles while taken, +2 when falling thru
+    ; we ran the loop 9 times, the first 8 took 5 cycles, the last took 4.
+    ; 8+8*5+4=52
+    nop         ; +2 cycles=54
+    rts         ; +6 cycles = 60
+.endproc
+; ~/~ end
 ; ~/~ end
