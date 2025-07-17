@@ -45,6 +45,7 @@ Let's write our own set of serial routines. Let's set-up our high level interrup
     .export MyIrq
 .proc MyIrq
     lda vic_scanline
+    sta start_line
     clc
     adc #LINES_FOR_XFER
     sta target_line
@@ -67,6 +68,14 @@ And the number of lines we intend to use this go-round.
 CYCLES_PER_LINE=65 ; on NTSC, PAL is 63
 TARGET_MICROSECONDS = 6000
 LINES_FOR_XFER = TARGET_MICROSECONDS / CYCLES_PER_LINE
+```
+
+Plus those line variables.
+
+```{.asm6502 #variables}
+    .bss
+start_line:  .res 2
+target_line: .res 2
 ```
 
 ### The Transfer
@@ -95,6 +104,7 @@ ser_index: .res 1 ; indicates the current index into the serial transfer
     .zeropage
 ser_pointer: .res 2 ; pointer to wherever we want to send/receive data
     .export ser_pointer
+ser_eof: .res 1 ; flag for the end of the current transfer is also end of file
 ```
 
 ```{.asm6502 #constants}
@@ -482,6 +492,13 @@ atntest.prg atntest.ll: $(OBJECTS) atntest.cfg
 
 %.o: %.s
 	ca65 -o $@ $*.s
+```
+
+But, just for fun, we'll add a make target to generate a nice PDF via pandoc.
+
+```{.make file=Makefile}
+atntest.pdf: atntest.md
+	pandoc -o atntest.pdf --filter pandoc-annotate-codeblocks atntest.md
 ```
 
 ## Conclusion

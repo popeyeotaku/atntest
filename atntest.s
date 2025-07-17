@@ -25,6 +25,11 @@ UNLISTEN = $3F
 
 ; ~/~ begin <<atntest.md#variables>>[init]
     .bss
+start_line:  .res 2
+target_line: .res 2
+; ~/~ end
+; ~/~ begin <<atntest.md#variables>>[1]
+    .bss
 atn_bytes: .res 1 ; indicates the number of bytes we want to transfer
     .export atn_bytes
 atn_index: .res 1 ; indicates the current index into the ATN transfer
@@ -40,18 +45,19 @@ ser_index: .res 1 ; indicates the current index into the serial transfer
     .zeropage
 ser_pointer: .res 2 ; pointer to wherever we want to send/receive data
     .export ser_pointer
+ser_eof: .res 1 ; flag for the end of the current transfer is also end of file
 ; ~/~ end
-; ~/~ begin <<atntest.md#variables>>[1]
+; ~/~ begin <<atntest.md#variables>>[2]
     .bss
 atn_on_flag: .res 1
     .export atn_on_flag
 ; ~/~ end
-; ~/~ begin <<atntest.md#variables>>[2]
+; ~/~ begin <<atntest.md#variables>>[3]
     .bss
 byte_buffer: .res 1
     .export byte_buffer
 ; ~/~ end
-; ~/~ begin <<atntest.md#variables>>[3]
+; ~/~ begin <<atntest.md#variables>>[4]
     .bss
 ser_online_flag: .res 1
     .export ser_online_flag
@@ -60,7 +66,7 @@ ser_dev: .res 1
 ser_second: .res 1
     .export ser_second
 ; ~/~ end
-; ~/~ begin <<atntest.md#variables>>[4]
+; ~/~ begin <<atntest.md#variables>>[5]
     .bss
     .align 2 ; avoid indirect jump bug
 old_irq: .res 2
@@ -72,6 +78,7 @@ old_irq: .res 2
     .export MyIrq
 .proc MyIrq
     lda vic_scanline
+    sta start_line
     clc
     adc #LINES_FOR_XFER
     sta target_line

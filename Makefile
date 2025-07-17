@@ -12,3 +12,7 @@ atntest.prg atntest.ll: $(OBJECTS) atntest.cfg
 %.o: %.s
 	ca65 -o $@ $*.s
 # ~/~ end
+# ~/~ begin <<atntest.md#Makefile>>[1]
+atntest.pdf: atntest.md
+	pandoc -o atntest.pdf --filter pandoc-annotate-codeblocks atntest.md
+# ~/~ end
