@@ -132,9 +132,9 @@ old_irq: .res 2
 
 ; ~/~ begin <<atntest.md#transfer_bytes>>[init]
 XferLoop:
-    lda atn_bytes   ; check if we wanna send an ATN command
-    beq SendAtn
-    lda ser_bytes   ; check if we wanna send/receive normal data
+    lda atn_bytes   ; check if we have any ATN command bytes we wanna send
+    bne SendAtn
+    lda ser_bytes   ; check if we have any normal data bytes we wanna send
     beq XferDone
 ; ~/~ begin <<atntest.md#read_or_write>>[init]
     .assert READ>=$80 && WRITE<$80,error,"expect to BIT a r/w flag"
@@ -158,6 +158,7 @@ SerWrite:
     sta atn_index
     lda #$FF
     sta ser_online_flag
+    bne XferLoop            ; Always taken. This will proceed with sending the ATN LISTEN command.
 WriteOnline:
 ; ~/~ end
 ; ~/~ begin <<atntest.md#ser_write>>[1]
@@ -182,8 +183,10 @@ GoodWrite:
     jmp XferLoop
 ; ~/~ end
 ; ~/~ begin <<atntest.md#ser_write>>[4]
+WriteDone:
     lda #0
     sta ser_bytes
+    sta ser_index
     lda #UNLISTEN
     jsr AtnOne
     jmp XferLoop
@@ -193,7 +196,7 @@ SerRead:
     brk ; TODO!
 ; ~/~ end
 ; ~/~ end
-    jmp XferDone
+    jmp XferLoop
 SendAtn:
 ; ~/~ begin <<atntest.md#send_atn>>[init]
     bit atn_on_flag
@@ -226,6 +229,7 @@ AtnDone:
     jsr AtnOff
     lda #0
     sta atn_bytes
+    sta atn_index
     sta atn_on_flag
     jmp XferDone
 ; ~/~ end
@@ -233,7 +237,7 @@ AtnDone:
 
 ; ~/~ begin <<atntest.md#wrapup_irq>>[init]
 XferDone:
-    jmp (old_irq)
+    jmp (old_irq)           ; run the regular IRQ handler now that we're finished!
 ; ~/~ end
 .endproc
 ; ~/~ end
@@ -242,17 +246,17 @@ XferDone:
     .code
     .export SetupIrq
 .proc SetupIrq
-    php
-    sei
-    lda IRQ_VECTOR
+    php                     ; save interrupt flag
+    sei                     ; disable interrupts
+    lda IRQ_VECTOR          ; save the current IRQ handler
     sta old_irq
     lda IRQ_VECTOR+1
     sta old_irq+1
-    lda #<MyIrq
+    lda #<MyIrq             ; store ours!
     sta IRQ_VECTOR
     lda #>MyIrq
     sta IRQ_VECTOR
-    plp
+    plp                     ; restore interrupt flags, since they're now safe to occur
     rts
 .endproc
 ; ~/~ end

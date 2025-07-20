@@ -38,7 +38,7 @@ There are several kinds of ATN commands which may be sent.
 
 ## The Test
 
-Let's write our own set of serial routines. Let's set-up our high level interrupt routine.
+Let's write our own set of serial routines. Let's set-up our high level interrupt routine. It'll get called 60 times per second according to the clock interrupt set up when the C64 boots into BASIC. The first thing it does is save the current and target scanlines, so we can use the VIC-II's scanline counter to know when to wrap up our transfer.
 
 ```{.asm6502 #irq}
     .code
@@ -115,12 +115,12 @@ Now, let's transfer some bytes!
 
 ```{.asm6502 #transfer_bytes}
 XferLoop:
-    lda atn_bytes   ; check if we wanna send an ATN command
-    beq SendAtn
-    lda ser_bytes   ; check if we wanna send/receive normal data
+    lda atn_bytes   ; check if we have any ATN command bytes we wanna send
+    bne SendAtn
+    lda ser_bytes   ; check if we have any normal data bytes we wanna send
     beq XferDone
 <<read_or_write>>
-    jmp XferDone
+    jmp XferLoop
 SendAtn:
 <<send_atn>>
 ```
@@ -164,13 +164,13 @@ byte_buffer: .res 1
     .export byte_buffer
 ```
 
-TrySendByte returns carry set if succeeded, carry clear if failed. Failure would be due to a timeout.
+TryWrite returns carry set if succeeded, carry clear if failed. Failure would be due to a timeout. If we timed out, just end the transfer interrupt. We'll try to send the ATN byte again next go-round, and the ATN line will be kept on in the meantime, forcing the other devices to keep waiting for us to send it.
 
 ```{.asm6502 #send_atn}
     bcc XferDone
 ```
 
-If we succeeded, increment our buffer index. If we wrote all the bytes, then end the ATN command.
+On the other hand, if we succeeded, increment our buffer index. If we wrote all the bytes, then end the ATN command.
 
 ```{.asm6502 #send_atn}
     ldx atn_index
@@ -183,6 +183,7 @@ AtnDone:
     jsr AtnOff
     lda #0
     sta atn_bytes
+    sta atn_index
     sta atn_on_flag
     jmp XferDone
 ```
@@ -203,7 +204,7 @@ SerRead:
 <<ser_read>>
 ```
 
-To start our write, we must output a TALK ATN command.
+To start our write, we must output a LISTEN ATN command to the other device, so we can TALK to it.
 
 ```{.asm6502 #ser_write}
     bit ser_online_flag
@@ -222,6 +223,7 @@ To start our write, we must output a TALK ATN command.
     sta atn_index
     lda #$FF
     sta ser_online_flag
+    bne XferLoop            ; Always taken. This will proceed with sending the ATN LISTEN command.
 WriteOnline:
 ```
 
@@ -240,9 +242,9 @@ LISTEN = $20
 SECOND = $60
 ```
 
-Once *ser_online_flag* is set, the target device is listening. It doesn't matter if the ATN command was paused in the middle, and we returned from our interrupt; the device kept listening to the ATN command for as long as we wished, and at the end it set itself up as listening.
+Once *ser_online_flag* is set, the target device is listening. Even if we ended the interrupt routine in the middle of sending the LISTEN command, the device kept waiting for the ATN to finish for as long as we needed, and in that case it would be listening in now on this round through the interrupt.
 
-Now to grab a byte and try to send it.
+Let's grab that byte and try to send it!
 
 ```{.asm6502 #ser_write}
     ldy ser_index
@@ -251,7 +253,7 @@ Now to grab a byte and try to send it.
     jsr TryWrite
 ```
 
-As for the ATN command, TryWrite returns carry clear if there was a timeout, carry set otherwise.
+As for the ATN command, TryWrite returns carry clear if there was a timeout, carry set if we succeeded.
 
 If we timed out, then we want to send an ATN command to have the device stop listening. This ATN command will also time out, which is fine.
 
@@ -294,8 +296,10 @@ GoodWrite:
 If we finished the write, then we also need to send the `UNLISTEN` command to indicate final transfer, in addition to clearing out the serial xfer.
 
 ```{.asm6502 #ser_write}
+WriteDone:
     lda #0
     sta ser_bytes
+    sta ser_index
     lda #UNLISTEN
     jsr AtnOne
     jmp XferLoop
@@ -376,17 +380,17 @@ We want to install our IRQ handler, and make sure that whatever IRQ handler that
     .code
     .export SetupIrq
 .proc SetupIrq
-    php
-    sei
-    lda IRQ_VECTOR
+    php                     ; save interrupt flag
+    sei                     ; disable interrupts
+    lda IRQ_VECTOR          ; save the current IRQ handler
     sta old_irq
     lda IRQ_VECTOR+1
     sta old_irq+1
-    lda #<MyIrq
+    lda #<MyIrq             ; store ours!
     sta IRQ_VECTOR
     lda #>MyIrq
     sta IRQ_VECTOR
-    plp
+    plp                     ; restore interrupt flags, since they're now safe to occur
     rts
 .endproc
 ```
@@ -397,10 +401,10 @@ IRQ_VECTOR = $0314 ; pointer to IRQ service routine
 
 ```{.asm6502 #wrapup_irq}
 XferDone:
-    jmp (old_irq)
+    jmp (old_irq)           ; run the regular IRQ handler now that we're finished!
 ```
 
-The 6502 has a bug: if we jump thru a variable, and that variable straddles a page -- the hibyte in $xxFF and the lobyte in $xy00 -- then it'll jump to the wrong address. We'll align the variable just to be safe.
+The 6502 has a bug: if we jump indirectly via a variable, and that variable straddles a page -- the hibyte in $xxFF and the lobyte in $xy00 -- then it'll jump to the wrong address. We'll align the variable just to be safe.
 
 ```{.asm6502 #variables}
     .bss
