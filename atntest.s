@@ -46,6 +46,15 @@ WRITE_ON_DATA_LO = TRUE
 ; ~/~ begin <<atntest.md#constants>>[11]
 OPEN = $F0
 ; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[12]
+CARRIAGE_RETURN = $0D
+; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[13]
+CHROUT = $FFD2
+; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[14]
+CLOSE = $E0
+; ~/~ end
 
 ; ~/~ begin <<atntest.md#macros>>[init]
 .if ACTIVE_HI = TRUE
@@ -440,10 +449,16 @@ TimeIn:
 .endproc
 ; ~/~ end
 ; ~/~ begin <<atntest.md#subrs>>[8]
-    .export WaitATN
-.proc WaitATN
-    lda atn_bytes
-    bne WaitATN
+    .export PrintScreen
+.proc PrintScreen
+    ldx #0
+PrintLoop:
+    lda print_msg,x
+    beq PrintDone
+    jsr CHROUT
+    inx
+    bne PrintLoop
+PrintDone:
     rts
 .endproc
 ; ~/~ end
@@ -492,14 +507,58 @@ OpenLoop:
     inx
     cpx #open_msg_end-open_msg
     bne OpenLoop
-    lda #0
-    sta atn_index               ; clear byte index into ATN array
-    stx atn_bytes               ; write the length of the message
+    lda #0          ; clear index into ATN buffer
+    sta atn_index
+    stx atn_bytes   ; write the length of bytes we want to send
+; ~/~ begin <<atntest.md#wait-for-atn>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
 ; ~/~ end
 ; ~/~ begin <<atntest.md#run-test>>[1]
-    jsr WaitATN
+    lda #<print_msg
+    sta ser_pointer
+    lda #>print_msg
+    sta ser_pointer+1
+    lda #0
+    sta ser_index
+    lda print_msg_end-print_msg
+    sta ser_bytes
 ; ~/~ end
 ; ~/~ begin <<atntest.md#run-test>>[2]
+    jsr PrintScreen
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[3]
+; ~/~ begin <<atntest.md#wait-for-ser>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+; ~/~ begin <<atntest.md#wait-for-atn>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+    ldx #0
+CloseLoop:
+    lda close_msg,x
+    sta atn_buffer,x
+    inx
+    cpx #close_msg_end-close_msg
+    bne CloseLoop
+    lda #0
+    sta atn_index
+    stx atn_bytes
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[4]
+    jsr PrintScreen
+; ~/~ begin <<atntest.md#wait-for-atn>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+    jmp *
 ; ~/~ end
 .endproc
 ; ~/~ end
@@ -507,14 +566,20 @@ OpenLoop:
 ; ~/~ begin <<atntest.md#data>>[init]
     .rodata
 open_msg:
-    .byte LISTEN+8,OPEN+2,"@0:FOO,S,W"
+    .byte OPEN+4,LISTEN+0,UNLISTEN
 open_msg_end:
-    .export open_msg, open_msg_end
+    .export open_msg,open_msg_end
 ; ~/~ end
 ; ~/~ begin <<atntest.md#data>>[1]
-file_data:
-    .byte "BAR",0
-file_data_end:
-    .export file_data,file_data_end
+print_msg:
+    .byte CARRIAGE_RETURN,"HELLO, WORLD",CARRIAGE_RETURN,"NICE TO MEET YOU!",CARRIAGE_RETURN,0
+print_msg_end:
+    .export print_msg, print_msg_end
+; ~/~ end
+; ~/~ begin <<atntest.md#data>>[2]
+close_msg:
+    .byte LISTEN+4,CLOSE+0,UNLISTEN
+close_msg_end:
+    .export close_msg,close_msg_end
 ; ~/~ end
 ; ~/~ end

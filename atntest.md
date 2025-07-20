@@ -685,19 +685,7 @@ ZpLoop:
     .import __BSS_LOAD__,__BSS_SIZE__,__ZEROPAGE_LOAD__,__ZEROPAGE_SIZE__
 ```
 
-To actually run the test, we'll start by writing an ATN command to open a disk file.
-
-```{.asm6502 #data}
-    .rodata
-open_msg:
-    .byte LISTEN+8,OPEN+2,"@0:FOO,S,W"
-open_msg_end:
-    .export open_msg, open_msg_end
-```
-
-```{.asm6502 #constants}
-OPEN = $F0
-```
+Now let's test some stuff! We'll start with the printer. Let's open it first!
 
 ```{.asm6502 #run-test}
     ldx #0
@@ -707,37 +695,121 @@ OpenLoop:
     inx
     cpx #open_msg_end-open_msg
     bne OpenLoop
-    lda #0
-    sta atn_index               ; clear byte index into ATN array
-    stx atn_bytes               ; write the length of the message
+    lda #0          ; clear index into ATN buffer
+    sta atn_index
+    stx atn_bytes   ; write the length of bytes we want to send
+<<wait-for-atn>>
 ```
 
-We'll wait for the ATN command to be finished.
+```{asm6502 #data}
+    .rodata
+open_msg:
+    .byte OPEN+4,LISTEN+0,UNLISTEN
+open_msg_end:
+    .export open_msg,open_msg_end
+```
+
+```{.asm6502 #constants}
+OPEN = $F0
+```
+
+```{.asm6502 #wait-for-atn}
+:
+    lda atn_bytes
+    bne :-
+```
+
+Next, we'll write a message.
+
+```{.asm6502 #data}
+print_msg:
+    .byte CARRIAGE_RETURN,"HELLO, WORLD",CARRIAGE_RETURN,"NICE TO MEET YOU!",CARRIAGE_RETURN,0
+print_msg_end:
+    .export print_msg, print_msg_end
+```
+
+```{.asm6502 #constants}
+CARRIAGE_RETURN = $0D
+```
 
 ```{.asm6502 #run-test}
-    jsr WaitATN
+    lda #<print_msg
+    sta ser_pointer
+    lda #>print_msg
+    sta ser_pointer+1
+    lda #0
+    sta ser_index
+    lda print_msg_end-print_msg
+    sta ser_bytes
+```
+
+Now, the message will start transferring to the printer in the background!
+
+Let's print something to the screen in the meantime.
+
+```{.asm6502 #run-test}
+    jsr PrintScreen
 ```
 
 ```{.asm6502 #subrs}
-    .export WaitATN
-.proc WaitATN
-    lda atn_bytes
-    bne WaitATN
+    .export PrintScreen
+.proc PrintScreen
+    ldx #0
+PrintLoop:
+    lda print_msg,x
+    beq PrintDone
+    jsr CHROUT
+    inx
+    bne PrintLoop
+PrintDone:
     rts
 .endproc
 ```
 
-Now, we'll write the file data.
-
-```{.asm6502 #data}
-file_data:
-    .byte "BAR",0
-file_data_end:
-    .export file_data,file_data_end
+```{.asm6502 #constants}
+CHROUT = $FFD2
 ```
 
-```{.asm6502 #run-test}
+Finally, let's wait for the data to finish transferring to the printer and close it.
 
+```{.asm6502 #run-test}
+<<wait-for-ser>>
+<<wait-for-atn>>
+    ldx #0
+CloseLoop:
+    lda close_msg,x
+    sta atn_buffer,x
+    inx
+    cpx #close_msg_end-close_msg
+    bne CloseLoop
+    lda #0
+    sta atn_index
+    stx atn_bytes
+```
+
+```{.asm6502 #data}
+close_msg:
+    .byte LISTEN+4,CLOSE+0,UNLISTEN
+close_msg_end:
+    .export close_msg,close_msg_end
+```
+
+```{.asm6502 #constants}
+CLOSE = $E0
+```
+
+```{.asm6502 #wait-for-ser}
+:
+    lda atn_bytes
+    bne :-
+```
+
+And we'll display the message onscreen again, for good measure, while we wait!
+
+```{.asm6502 #run-test}
+    jsr PrintScreen
+<<wait-for-atn>>
+    jmp *
 ```
 
 ## Building
