@@ -1,5 +1,4 @@
 ; ~/~ begin <<atntest.md#atntest.s>>[init]
-
 ; ~/~ begin <<atntest.md#constants>>[init]
 VIC_SCANLINE = $D012
 ; ~/~ end
@@ -82,13 +81,18 @@ CLOSE = $E0
 .endif
 ; ~/~ end
 
-; ~/~ begin <<atntest.md#variables>>[init]
+    .zeropage
+; ~/~ begin <<atntest.md#zeropage>>[init]
+ser_pointer: .res 2 ; pointer to wherever we want to send/receive data
+    .export ser_pointer
+; ~/~ end
+
     .bss
+; ~/~ begin <<atntest.md#variables>>[init]
 start_line:  .res 2
 target_line: .res 2
 ; ~/~ end
 ; ~/~ begin <<atntest.md#variables>>[1]
-    .bss
 atn_bytes: .res 1 ; indicates the number of bytes we want to transfer
     .export atn_bytes
 atn_index: .res 1 ; indicates the current index into the ATN transfer
@@ -101,23 +105,18 @@ ser_bytes: .res 1 ; indicates the number of bytes to read/write over serial
     .export ser_bytes
 ser_index: .res 1 ; indicates the current index into the serial transfer
     .export ser_index
-    .zeropage
-ser_pointer: .res 2 ; pointer to wherever we want to send/receive data
-    .export ser_pointer
 ser_eof: .res 1 ; flag for the end of the current transfer is also end of file
+    .export ser_eof
 ; ~/~ end
 ; ~/~ begin <<atntest.md#variables>>[2]
-    .bss
 atn_on_flag: .res 1
     .export atn_on_flag
 ; ~/~ end
 ; ~/~ begin <<atntest.md#variables>>[3]
-    .bss
 byte_buffer: .res 1
     .export byte_buffer
 ; ~/~ end
 ; ~/~ begin <<atntest.md#variables>>[4]
-    .bss
 ser_online_flag: .res 1
     .export ser_online_flag
 ser_dev: .res 1
@@ -126,14 +125,113 @@ ser_second: .res 1
     .export ser_second
 ; ~/~ end
 ; ~/~ begin <<atntest.md#variables>>[5]
-    .bss
     .align 2 ; avoid indirect jump bug
 old_irq: .res 2
     .export old_irq
 ; ~/~ end
 
-; ~/~ begin <<atntest.md#irq>>[init]
     .code
+; ~/~ begin <<atntest.md#main>>[init]
+    .export Start
+.proc Start
+; ~/~ begin <<atntest.md#init-test>>[init]
+; ~/~ begin <<atntest.md#clear-bss>>[init]
+    lda #<__BSS_LOAD__
+    sta ser_pointer
+    lda #>__BSS_LOAD__
+    sta ser_pointer+1
+    ldy #0
+BssLoop:
+    lda ser_pointer+1
+    cmp #>(__BSS_LOAD__+__BSS_SIZE__)
+    bne BssClear
+    lda ser_pointer
+    cmp #<(__BSS_LOAD__+__BSS_SIZE__)
+    beq BssDone
+BssClear:
+    tya                     ; Y=0
+    sta (ser_pointer),y
+    inc ser_pointer
+    bne BssLoop
+    inc ser_pointer+1
+    jmp BssLoop
+BssDone:
+    ldx #0
+    tya
+ZpLoop:
+    sta (<__ZEROPAGE_LOAD__),y
+    inx
+    cpx #<__ZEROPAGE_SIZE__
+    bne ZpLoop
+    .import __BSS_LOAD__,__BSS_SIZE__,__ZEROPAGE_LOAD__,__ZEROPAGE_SIZE__
+; ~/~ end
+    jsr SetupIrq
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[init]
+    ldx #0
+OpenLoop:
+    lda open_msg,x
+    sta atn_buffer,x
+    inx
+    cpx #open_msg_end-open_msg
+    bne OpenLoop
+    lda #0          ; clear index into ATN buffer
+    sta atn_index
+    stx atn_bytes   ; write the length of bytes we want to send
+; ~/~ begin <<atntest.md#wait-for-atn>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[1]
+    lda #<print_msg
+    sta ser_pointer
+    lda #>print_msg
+    sta ser_pointer+1
+    lda #0
+    sta ser_index
+    lda print_msg_end-print_msg
+    sta ser_bytes
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[2]
+    jsr PrintScreen
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[3]
+; ~/~ begin <<atntest.md#wait-for-ser>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+; ~/~ begin <<atntest.md#wait-for-atn>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+    ldx #0
+CloseLoop:
+    lda close_msg,x
+    sta atn_buffer,x
+    inx
+    cpx #close_msg_end-close_msg
+    bne CloseLoop
+    lda #0
+    sta atn_index
+    stx atn_bytes
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[4]
+    jsr PrintScreen
+; ~/~ begin <<atntest.md#wait-for-atn>>[init]
+:
+    lda atn_bytes
+    bne :-
+; ~/~ end
+    jmp *
+; ~/~ end
+.endproc
+; ~/~ end
+
+; ~/~ begin <<atntest.md#irq>>[init]
     .export MyIrq
 .proc MyIrq
     lda VIC_SCANLINE
@@ -257,7 +355,6 @@ XferDone:
 ; ~/~ end
 
 ; ~/~ begin <<atntest.md#setup_irq>>[init]
-    .code
     .export SetupIrq
 .proc SetupIrq
     php                     ; save interrupt flag
@@ -276,7 +373,6 @@ XferDone:
 ; ~/~ end
 
 ; ~/~ begin <<atntest.md#subrs>>[init]
-    .code
     .export AtnOne
 .proc AtnOne
     sta atn_buffer
@@ -383,7 +479,6 @@ Loop:
 .endproc
 ; ~/~ end
 ; ~/~ begin <<atntest.md#subrs>>[5]
-.code
 AtnOn:
     bit_on ATN_OUT
     rts
@@ -405,7 +500,6 @@ DataOff:
 .export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
 ; ~/~ end
 ; ~/~ begin <<atntest.md#subrs>>[6]
-.code
 .export WaitWrite
 WaitWrite:
     .assert DATA_IN = $80,error,"DATA_IN isn't in bit7"
@@ -462,109 +556,8 @@ PrintDone:
     rts
 .endproc
 ; ~/~ end
-
-; ~/~ begin <<atntest.md#main>>[init]
-    .export Start
-.proc Start
-; ~/~ begin <<atntest.md#init-test>>[init]
-; ~/~ begin <<atntest.md#clear-bss>>[init]
-    lda #<__BSS_LOAD__
-    sta ser_pointer
-    lda #>__BSS_LOAD__
-    sta ser_pointer+1
-    ldy #0
-BssLoop:
-    lda ser_pointer+1
-    cmp #>(__BSS_LOAD__+__BSS_SIZE__)
-    bne BssClear
-    lda ser_pointer
-    cmp #<(__BSS_LOAD__+__BSS_SIZE__)
-    beq BssDone
-BssClear:
-    tya                     ; Y=0
-    sta (ser_pointer),y
-    inc ser_pointer
-    bne BssLoop
-    inc ser_pointer+1
-    jmp BssLoop
-BssDone:
-    ldx #0
-    tya
-ZpLoop:
-    sta (<__ZEROPAGE_LOAD__),y
-    inx
-    cpx #<__ZEROPAGE_SIZE__
-    bne ZpLoop
-    .import __BSS_LOAD__,__BSS_SIZE__,__ZEROPAGE_LOAD__,__ZEROPAGE_SIZE__
-; ~/~ end
-    jsr SetupIrq
-; ~/~ end
-; ~/~ begin <<atntest.md#run-test>>[init]
-    ldx #0
-OpenLoop:
-    lda open_msg,x
-    sta atn_buffer,x
-    inx
-    cpx #open_msg_end-open_msg
-    bne OpenLoop
-    lda #0          ; clear index into ATN buffer
-    sta atn_index
-    stx atn_bytes   ; write the length of bytes we want to send
-; ~/~ begin <<atntest.md#wait-for-atn>>[init]
-:
-    lda atn_bytes
-    bne :-
-; ~/~ end
-; ~/~ end
-; ~/~ begin <<atntest.md#run-test>>[1]
-    lda #<print_msg
-    sta ser_pointer
-    lda #>print_msg
-    sta ser_pointer+1
-    lda #0
-    sta ser_index
-    lda print_msg_end-print_msg
-    sta ser_bytes
-; ~/~ end
-; ~/~ begin <<atntest.md#run-test>>[2]
-    jsr PrintScreen
-; ~/~ end
-; ~/~ begin <<atntest.md#run-test>>[3]
-; ~/~ begin <<atntest.md#wait-for-ser>>[init]
-:
-    lda atn_bytes
-    bne :-
-; ~/~ end
-; ~/~ begin <<atntest.md#wait-for-atn>>[init]
-:
-    lda atn_bytes
-    bne :-
-; ~/~ end
-    ldx #0
-CloseLoop:
-    lda close_msg,x
-    sta atn_buffer,x
-    inx
-    cpx #close_msg_end-close_msg
-    bne CloseLoop
-    lda #0
-    sta atn_index
-    stx atn_bytes
-; ~/~ end
-; ~/~ begin <<atntest.md#run-test>>[4]
-    jsr PrintScreen
-; ~/~ begin <<atntest.md#wait-for-atn>>[init]
-:
-    lda atn_bytes
-    bne :-
-; ~/~ end
-    jmp *
-; ~/~ end
-.endproc
-; ~/~ end
-
-; ~/~ begin <<atntest.md#data>>[init]
     .rodata
+; ~/~ begin <<atntest.md#data>>[init]
 open_msg:
     .byte OPEN+4,LISTEN+0,UNLISTEN
 open_msg_end:

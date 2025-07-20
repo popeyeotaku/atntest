@@ -41,7 +41,6 @@ There are several kinds of ATN commands which may be sent.
 Let's write our own set of serial routines. Let's set-up our high level interrupt routine. It'll get called 60 times per second according to the clock interrupt set up when the C64 boots into BASIC. The first thing it does is save the current and target scanlines, so we can use the VIC-II's scanline counter to know when to wrap up our transfer.
 
 ```{.asm6502 #irq}
-    .code
     .export MyIrq
 .proc MyIrq
     lda VIC_SCANLINE
@@ -73,7 +72,6 @@ LINES_FOR_XFER = TARGET_MICROSECONDS / CYCLES_PER_LINE
 Plus those line variables.
 
 ```{.asm6502 #variables}
-    .bss
 start_line:  .res 2
 target_line: .res 2
 ```
@@ -88,7 +86,6 @@ WRITE = $00
 ```
 
 ```{.asm6502 #variables}
-    .bss
 atn_bytes: .res 1 ; indicates the number of bytes we want to transfer
     .export atn_bytes
 atn_index: .res 1 ; indicates the current index into the ATN transfer
@@ -101,10 +98,13 @@ ser_bytes: .res 1 ; indicates the number of bytes to read/write over serial
     .export ser_bytes
 ser_index: .res 1 ; indicates the current index into the serial transfer
     .export ser_index
-    .zeropage
+ser_eof: .res 1 ; flag for the end of the current transfer is also end of file
+    .export ser_eof
+```
+
+```{.asm6502 #zeropage}
 ser_pointer: .res 2 ; pointer to wherever we want to send/receive data
     .export ser_pointer
-ser_eof: .res 1 ; flag for the end of the current transfer is also end of file
 ```
 
 ```{.asm6502 #constants}
@@ -146,7 +146,6 @@ SkipTurnOn:
 ```
 
 ```{.asm6502 #variables}
-    .bss
 atn_on_flag: .res 1
     .export atn_on_flag
 ```
@@ -161,7 +160,6 @@ Now, we grab the byte and try to send.
 ```
 
 ```{.asm6502 #variables}
-    .bss
 byte_buffer: .res 1
     .export byte_buffer
 ```
@@ -230,7 +228,6 @@ WriteOnline:
 ```
 
 ```{.asm6502 #variables}
-    .bss
 ser_online_flag: .res 1
     .export ser_online_flag
 ser_dev: .res 1
@@ -267,7 +264,6 @@ If we timed out, then we want to send an ATN command to have the device stop lis
 ```
 
 ```{.asm6502 #subrs}
-    .code
     .export AtnOne
 .proc AtnOne
     sta atn_buffer
@@ -379,7 +375,6 @@ And, we're done!
 We want to install our IRQ handler, and make sure that whatever IRQ handler that *was* there previous will still be called.
 
 ```{.asm6502 #setup_irq}
-    .code
     .export SetupIrq
 .proc SetupIrq
     php                     ; save interrupt flag
@@ -409,7 +404,6 @@ XferDone:
 The 6502 has a bug: if we jump indirectly via a variable, and that variable straddles a page -- the hibyte in $xxFF and the lobyte in $xy00 -- then it'll jump to the wrong address. We'll align the variable just to be safe.
 
 ```{.asm6502 #variables}
-    .bss
     .align 2 ; avoid indirect jump bug
 old_irq: .res 2
     .export old_irq
@@ -535,7 +529,6 @@ Now for the macros to set/reset the bits.
 Now for the actual routines themselves.
 
 ```{.asm6502 #subrs}
-.code
 AtnOn:
     bit_on ATN_OUT
     rts
@@ -568,7 +561,6 @@ WRITE_ON_DATA_LO = TRUE
 It turned out that the `.if` didn't work if `WaitWrite` was defined as a *CA65* `proc` (which allow for local labels), so I wrote it as a plain label with an anonymous branch target instead.
 
 ```{.asm6502 #subrs}
-.code
 .export WaitWrite
 WaitWrite:
     .assert DATA_IN = $80,error,"DATA_IN isn't in bit7"
@@ -701,7 +693,6 @@ OpenLoop:
 ```
 
 ```{asm6502 #data}
-    .rodata
 open_msg:
     .byte OPEN+4,LISTEN+0,UNLISTEN
 open_msg_end:
@@ -816,21 +807,25 @@ And we'll display the message onscreen again, for good measure, while we wait!
 Let's put together our whole source file.
 
 ```{.asm6502 file=atntest.s}
-
 <<constants>>
 
 <<macros>>
 
+    .zeropage
+<<zeropage>>
+
+    .bss
 <<variables>>
+
+    .code
+<<main>>
 
 <<irq>>
 
 <<setup_irq>>
 
 <<subrs>>
-
-<<main>>
-
+    .rodata
 <<data>>
 ```
 
