@@ -23,7 +23,7 @@ SECOND = $60
 UNLISTEN = $3F
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[6]
-irq_vector = $0314 ; pointer to IRQ service routine
+IRQ_VECTOR = $0314 ; pointer to IRQ service routine
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[7]
 TRUE = $FF
@@ -46,7 +46,7 @@ WRITE_ON_DATA_LO = TRUE
 
 ; ~/~ begin <<atntest.md#macros>>[init]
 .if ACTIVE_HI = TRUE
-    .mac bit_on bit
+    .mac bit_on bitf
         lda CIA_PORT
         ora #bit
         sta CIA_PORT
@@ -190,6 +190,7 @@ GoodWrite:
 ; ~/~ end
 SerRead:
 ; ~/~ begin <<atntest.md#ser_read>>[init]
+    brk ; TODO!
 ; ~/~ end
 ; ~/~ end
     jmp XferDone
@@ -243,14 +244,14 @@ XferDone:
 .proc SetupIrq
     php
     sei
-    lda irq_vector
+    lda IRQ_VECTOR
     sta old_irq
-    lda irq_vector+1
+    lda IRQ_VECTOR+1
     sta old_irq+1
     lda #<MyIrq
-    sta irq_vector
+    sta IRQ_VECTOR
     lda #>MyIrq
-    sta irq_vector
+    sta IRQ_VECTOR
     plp
     rts
 .endproc
@@ -314,9 +315,9 @@ WriteDone:
 .proc Wait60Us
     ; 6 cycles to JSR here
     ldy #9      ; +2 cycles=8
-loop:
+Loop:
     dey         ; +2 cyles
-    bne loop    ; +3 cyles while taken, +2 when falling thru
+    bne Loop    ; +3 cyles while taken, +2 when falling thru
     ; we ran the loop 9 times, the first 8 took 5 cycles, the last took 4.
     ; 8+8*5+4=52
     nop         ; +2 cycles=54
@@ -324,6 +325,46 @@ loop:
 .endproc
 ; ~/~ end
 ; ~/~ begin <<atntest.md#subrs>>[3]
+    .export Wait256Us
+.proc Wait256Us
+    ; 6 cycles to JSR here
+    ldy #48        ; +2
+Loop:
+    dey             ; +2
+    bne Loop        ; +3 cycles while taken, +2 when falling thru
+    ; last loop thru took 4 cycles, rest took 5
+    ; 8+5*(y-1)+4=250
+    ; 5*(y-1)=250-8-4
+    ; y-1=238/5
+    ; y=47.6+1
+    ; y=48
+    ; 8+5*47+4=247
+    nop             ; +2 cycles=249
+    rts             ; +6 cycles=255, which is close enough
+.endproc
+; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[4]
+    .export Wait1kUs
+.proc Wait1kUs
+    ; 6 cycles to JSR here
+    ; 1000/255=3.9
+    jsr Wait256Us   ; +255=261
+    jsr Wait256Us   ; +255=516
+    jsr Wait256Us   ; +255=771
+    ; 229 cycles remaining
+    ldy #74        ; +2 cycles=773
+Loop:
+    dey             ; +2 cycles
+    bne Loop        ; +3 cycles every loop thru until last, which takes +2
+    ; 773+3*(y-1)+2=1000-6
+    ; 3*(y-1)=1000-6-773-2
+    ; y-1=219/3
+    ; y=73+1
+    ; 773+3*(74-1)+2=994
+    rts             ; +6 cycles on exit
+.endproc
+; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[5]
 .code
 AtnOn:
     bit_on ATN_OUT
@@ -345,7 +386,7 @@ DataOff:
     rts
 .export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[4]
+; ~/~ begin <<atntest.md#subrs>>[6]
 .code
 .export WaitWrite
 WaitWrite:
@@ -362,7 +403,7 @@ WaitWrite:
 :
     rts
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[5]
+; ~/~ begin <<atntest.md#subrs>>[7]
 ; Return carry clear if we've timed out on our xfer time, carry set otherwise.
 .export CheckScanline
 .proc CheckScanline
