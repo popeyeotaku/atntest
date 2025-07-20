@@ -537,6 +537,54 @@ WaitWrite:
     rts
 ```
 
+##### Scanline Checks
+
+We use the current scanline number to figure out if we've timed out the transfer. Theoretically, we could end up *past* our target scanline, which is a problem when the scanline count wraps around pretty easily.
+
+To handle this, we first check if `target_line` is less than `start_line`. If not, we can perform a normal range check `cur_line >= start_line && cur_line < target_line`. But if they are, we replace the and with an or: `cur_line >= start_line || cur_line < target_line`. If either check succeeds, then we haven't timed out yet.
+
+Let's work through some test cases to check.
+
+- If we start on line 10, and our target line is 102:
+    - If we start our check still on line 10, we don't timeout since cur_line >= `start_line`.
+    - If we check on lines 11-101, we don't timeout since `cur_line` < `target_line` and >= `start_line`.
+    - If we check on lines 102-255, we successfully timeout, since `cur_line` >= `start_line` and not < `target_line`.
+    - If we check on lines 0-9, we successfully timeout, since `cur_line` is not >= `start_line`. If we used an `||` instead of an `&&`, we would fail to timeout -- since we're still < `target_line`.
+- If we start on line 254, and our target line is rolled over to 90:
+    - If we start our check still on line 254, we don't timeout since `cur_line` >= `start_line`.
+    - If we check on line 255, we don't timeout, since `cur_line` >= `start_line`. If we used an `&&` instead of an `||`, we'd accidentally timeout here -- since `cur_line` is not < `target_line`.
+    - If we check on lines 0-89, we don't timeout, since `cur_line` < `target_line`. If we used an `&&` instead of an `||`, we'd accidentally timeout here -- since `cur_line` is not >= `start_line`.
+    - If we check on lines 90-253, we'd successfully timeout, since `cur_line` is not < `target_line` *or* >= `start_line`.
+```
+
+```{.asm6502 #subrs}
+; Return carry clear if we've timed out on our xfer time, carry set otherwise.
+.export CheckScanline
+.proc CheckScanline
+    lda target_line
+    cmp start_line
+    bcc OrCheck
+AndCheck:
+    lda VIC_SCANLINE
+    cmp start_line
+    bcc TimeOut
+    cmp target_line
+    bcc TimeIn
+TimeOut:
+    clc
+    rts
+OrCheck:
+    lda VIC_SCANLINE
+    cmp start_line
+    bcs TimeIn
+    cmp target_line
+    bcs TimeOut
+TimeIn:
+    sec
+    rts
+.endproc
+```
+
 ## Building
 
 Let's put together our whole source file.

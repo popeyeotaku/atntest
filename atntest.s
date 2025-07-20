@@ -362,4 +362,31 @@ WaitWrite:
 :
     rts
 ; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[5]
+; Return carry clear if we've timed out on our xfer time, carry set otherwise.
+.export CheckScanline
+.proc CheckScanline
+    lda target_line
+    cmp start_line
+    bcc OrCheck
+AndCheck:
+    lda VIC_SCANLINE
+    cmp start_line
+    bcc TimeOut
+    cmp target_line
+    bcc TimeIn
+TimeOut:
+    clc
+    rts
+OrCheck:
+    lda VIC_SCANLINE
+    cmp start_line
+    bcs TimeIn
+    cmp target_line
+    bcs TimeOut
+TimeIn:
+    sec
+    rts
+.endproc
+; ~/~ end
 ; ~/~ end
