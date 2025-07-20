@@ -668,7 +668,7 @@ SEGMENTS {
     CODE: load = RAM, type = ro;
     RODATA: load = RAM, type = ro;
     DATA: load = RAM, type = rw;
-    BSS: load = RAM, type = bss, define = yes;
+    BSS: load = RAM, type = bss, define = yes, align = 2;
 }
 ```
 
