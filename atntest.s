@@ -44,16 +44,10 @@ DATA_IN = 1<<7
 WRITE_ON_DATA_LO = !ACTIVE_1_IN
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[11]
-OPEN = $F0
-; ~/~ end
-; ~/~ begin <<atntest.md#constants>>[12]
 CARRIAGE_RETURN = $0D
 ; ~/~ end
-; ~/~ begin <<atntest.md#constants>>[13]
+; ~/~ begin <<atntest.md#constants>>[12]
 CHROUT = $FFD2
-; ~/~ end
-; ~/~ begin <<atntest.md#constants>>[14]
-CLOSE = $E0
 ; ~/~ end
 
 ; ~/~ begin <<atntest.md#macros>>[init]
@@ -171,30 +165,21 @@ ZpLoop:
     jsr SetupIrq
 ; ~/~ end
 ; ~/~ begin <<atntest.md#run-test>>[init]
-    ldx #0
-OpenLoop:
-    lda open_msg,x
-    sta atn_buffer,x
-    inx
-    cpx #open_msg_end-open_msg
-    bne OpenLoop
-    lda #0          ; clear index into ATN buffer
-    sta atn_index
-    stx atn_bytes   ; write the length of bytes we want to send
-; ~/~ begin <<atntest.md#wait-for-atn>>[init]
-:
-    lda atn_bytes
-    bne :-
-; ~/~ end
+RunTest:
+    .export RunTest
 ; ~/~ end
 ; ~/~ begin <<atntest.md#run-test>>[1]
     lda #<print_msg
     sta ser_pointer
     lda #>print_msg
     sta ser_pointer+1
+    lda #4
+    sta ser_dev
     lda #0
     sta ser_index
-    lda print_msg_end-print_msg
+    lda #$FF
+    sta ser_eof
+    lda #print_msg_end-print_msg
     sta ser_bytes
 ; ~/~ end
 ; ~/~ begin <<atntest.md#run-test>>[2]
@@ -203,7 +188,7 @@ OpenLoop:
 ; ~/~ begin <<atntest.md#run-test>>[3]
 ; ~/~ begin <<atntest.md#wait-for-ser>>[init]
 :
-    lda atn_bytes
+    lda ser_bytes
     bne :-
 ; ~/~ end
 ; ~/~ begin <<atntest.md#wait-for-atn>>[init]
@@ -211,24 +196,8 @@ OpenLoop:
     lda atn_bytes
     bne :-
 ; ~/~ end
-    ldx #0
-CloseLoop:
-    lda close_msg,x
-    sta atn_buffer,x
-    inx
-    cpx #close_msg_end-close_msg
-    bne CloseLoop
-    lda #0
-    sta atn_index
-    stx atn_bytes
 ; ~/~ end
 ; ~/~ begin <<atntest.md#run-test>>[4]
-    jsr PrintScreen
-; ~/~ begin <<atntest.md#wait-for-atn>>[init]
-:
-    lda atn_bytes
-    bne :-
-; ~/~ end
     jmp *
 ; ~/~ end
 .endproc
@@ -263,12 +232,16 @@ SerWrite:
     clc
     adc ser_dev
     sta atn_buffer
-    lda #SECOND
+    ldx #1
+    lda ser_second  ; send secondary address, if any
+    beq :+
     clc
+    adc #SECOND
     adc ser_second
     sta atn_buffer+1
-    lda #2
-    sta atn_bytes
+    inx
+:
+    stx atn_bytes
     lda #0
     sta atn_index
     lda #$FF
@@ -286,6 +259,8 @@ WriteOnline:
     bcs GoodWrite
     lda #UNLISTEN
     jsr AtnOne
+    lda #0
+    sta ser_online_flag
     jmp XferLoop
 ; ~/~ end
 ; ~/~ begin <<atntest.md#ser_write>>[3]
@@ -346,7 +321,7 @@ AtnDone:
     sta atn_bytes
     sta atn_index
     sta atn_on_flag
-    jmp XferDone
+    jmp XferLoop
 ; ~/~ end
 ; ~/~ end
 
@@ -379,10 +354,10 @@ XferDone:
     .export AtnOne
 .proc AtnOne
     sta atn_buffer
-    lda #1
-    sta atn_bytes
     lda #0
     sta atn_index
+    lda #1
+    sta atn_bytes
     rts
 .endproc
 ; ~/~ end
@@ -403,6 +378,8 @@ XferDone:
     cpx ser_bytes
     bne NoEof
     jsr Wait256Us
+    lda #0          ; clear EOF flag for next transfer
+    sta ser_eof
 NoEof:
 ; ~/~ end
 ; ~/~ begin <<atntest.md#try_write>>[3]
@@ -562,21 +539,9 @@ PrintDone:
 ; ~/~ end
     .rodata
 ; ~/~ begin <<atntest.md#data>>[init]
-open_msg:
-    .byte OPEN+4,LISTEN+0,UNLISTEN
-open_msg_end:
-    .export open_msg,open_msg_end
-; ~/~ end
-; ~/~ begin <<atntest.md#data>>[1]
 print_msg:
     .byte CARRIAGE_RETURN,"HELLO, WORLD",CARRIAGE_RETURN,"NICE TO MEET YOU!",CARRIAGE_RETURN,0
 print_msg_end:
     .export print_msg, print_msg_end
-; ~/~ end
-; ~/~ begin <<atntest.md#data>>[2]
-close_msg:
-    .byte LISTEN+4,CLOSE+0,UNLISTEN
-close_msg_end:
-    .export close_msg,close_msg_end
 ; ~/~ end
 ; ~/~ end

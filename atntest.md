@@ -186,7 +186,7 @@ AtnDone:
     sta atn_bytes
     sta atn_index
     sta atn_on_flag
-    jmp XferDone
+    jmp XferLoop
 ```
 
 #### Regular Serial Transfer
@@ -214,12 +214,16 @@ To start our write, we must output a LISTEN ATN command to the other device, so 
     clc
     adc ser_dev
     sta atn_buffer
-    lda #SECOND
+    ldx #1
+    lda ser_second  ; send secondary address, if any
+    beq :+
     clc
+    adc #SECOND
     adc ser_second
     sta atn_buffer+1
-    lda #2
-    sta atn_bytes
+    inx
+:
+    stx atn_bytes
     lda #0
     sta atn_index
     lda #$FF
@@ -261,6 +265,8 @@ If we timed out, then we want to send an ATN command to have the device stop lis
     bcs GoodWrite
     lda #UNLISTEN
     jsr AtnOne
+    lda #0
+    sta ser_online_flag
     jmp XferLoop
 ```
 
@@ -268,10 +274,10 @@ If we timed out, then we want to send an ATN command to have the device stop lis
     .export AtnOne
 .proc AtnOne
     sta atn_buffer
-    lda #1
-    sta atn_bytes
     lda #0
     sta atn_index
+    lda #1
+    sta atn_bytes
     rts
 .endproc
 ```
@@ -339,6 +345,8 @@ If this is the end-of-stream, we should delay 256 microseconds here.
     cpx ser_bytes
     bne NoEof
     jsr Wait256Us
+    lda #0          ; clear EOF flag for next transfer
+    sta ser_eof
 NoEof:
 ```
 
@@ -680,40 +688,16 @@ ZpLoop:
     .import __BSS_LOAD__,__BSS_SIZE__,__ZEROPAGE_LOAD__,__ZEROPAGE_SIZE__
 ```
 
-Now let's test some stuff! We'll start with the printer. Let's open it first!
+Now let's test some stuff! We'll start with the printer.
 
 ```{.asm6502 #run-test}
-    ldx #0
-OpenLoop:
-    lda open_msg,x
-    sta atn_buffer,x
-    inx
-    cpx #open_msg_end-open_msg
-    bne OpenLoop
-    lda #0          ; clear index into ATN buffer
-    sta atn_index
-    stx atn_bytes   ; write the length of bytes we want to send
-<<wait-for-atn>>
+RunTest:
+    .export RunTest
 ```
 
-```{asm6502 #data}
-open_msg:
-    .byte OPEN+4,LISTEN+0,UNLISTEN
-open_msg_end:
-    .export open_msg,open_msg_end
-```
+Since there's no secondary address or filename, we don't need to send the `OPEN` command
 
-```{.asm6502 #constants}
-OPEN = $F0
-```
-
-```{.asm6502 #wait-for-atn}
-:
-    lda atn_bytes
-    bne :-
-```
-
-Next, we'll write a message.
+Let's just write a message.
 
 ```{.asm6502 #data}
 print_msg:
@@ -731,9 +715,13 @@ CARRIAGE_RETURN = $0D
     sta ser_pointer
     lda #>print_msg
     sta ser_pointer+1
+    lda #4
+    sta ser_dev
     lda #0
     sta ser_index
-    lda print_msg_end-print_msg
+    lda #$FF
+    sta ser_eof
+    lda #print_msg_end-print_msg
     sta ser_bytes
 ```
 
@@ -764,45 +752,28 @@ PrintDone:
 CHROUT = $FFD2
 ```
 
-Finally, let's wait for the data to finish transferring to the printer and close it.
+Finally, let's wait for the data to finish transferring to the printer.
 
 ```{.asm6502 #run-test}
 <<wait-for-ser>>
 <<wait-for-atn>>
-    ldx #0
-CloseLoop:
-    lda close_msg,x
-    sta atn_buffer,x
-    inx
-    cpx #close_msg_end-close_msg
-    bne CloseLoop
-    lda #0
-    sta atn_index
-    stx atn_bytes
-```
-
-```{.asm6502 #data}
-close_msg:
-    .byte LISTEN+4,CLOSE+0,UNLISTEN
-close_msg_end:
-    .export close_msg,close_msg_end
-```
-
-```{.asm6502 #constants}
-CLOSE = $E0
 ```
 
 ```{.asm6502 #wait-for-ser}
+:
+    lda ser_bytes
+    bne :-
+```
+
+```{.asm6502 #wait-for-atn}
 :
     lda atn_bytes
     bne :-
 ```
 
-And we'll display the message onscreen again, for good measure, while we wait!
+And, we're done! Let's loop here forever.
 
 ```{.asm6502 #run-test}
-    jsr PrintScreen
-<<wait-for-atn>>
     jmp *
 ```
 
