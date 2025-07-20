@@ -391,6 +391,10 @@ We want to install our IRQ handler, and make sure that whatever IRQ handler that
 .endproc
 ```
 
+```{.asm6502 #constants}
+irq_vector = $0314 ; pointer to IRQ service routine
+```
+
 ```{.asm6502 #wrapup_irq}
 XferDone:
     jmp (old_irq)

@@ -23,21 +23,24 @@ SECOND = $60
 UNLISTEN = $3F
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[6]
+irq_vector = $0314 ; pointer to IRQ service routine
+; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[7]
 TRUE = $FF
 FALSE = 0
 ACTIVE_HI = FALSE
 ; ~/~ end
-; ~/~ begin <<atntest.md#constants>>[7]
+; ~/~ begin <<atntest.md#constants>>[8]
 CIA_PORT = $DD00
 ; ~/~ end
-; ~/~ begin <<atntest.md#constants>>[8]
+; ~/~ begin <<atntest.md#constants>>[9]
 ATN_OUT = 1<<3
 CLK_OUT = 1<<4
 DATA_OUT = 1<<5
 CLK_IN = 1<<6
 DATA_IN = 1<<7
 ; ~/~ end
-; ~/~ begin <<atntest.md#constants>>[9]
+; ~/~ begin <<atntest.md#constants>>[10]
 WRITE_ON_DATA_LO = TRUE
 ; ~/~ end
 
