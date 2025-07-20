@@ -43,6 +43,9 @@ DATA_IN = 1<<7
 ; ~/~ begin <<atntest.md#constants>>[10]
 WRITE_ON_DATA_LO = TRUE
 ; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[11]
+OPEN = $F0
+; ~/~ end
 
 ; ~/~ begin <<atntest.md#macros>>[init]
 .if ACTIVE_HI = TRUE
@@ -435,5 +438,83 @@ TimeIn:
     sec
     rts
 .endproc
+; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[8]
+    .export WaitATN
+.proc WaitATN
+    lda atn_bytes
+    bne WaitATN
+    rts
+.endproc
+; ~/~ end
+
+; ~/~ begin <<atntest.md#main>>[init]
+    .export Start
+.proc Start
+; ~/~ begin <<atntest.md#init-test>>[init]
+; ~/~ begin <<atntest.md#clear-bss>>[init]
+    lda #<__BSS_LOAD__
+    sta ser_pointer
+    lda #>__BSS_LOAD__
+    sta ser_pointer+1
+    ldy #0
+BssLoop:
+    lda ser_pointer+1
+    cmp #>(__BSS_LOAD__+__BSS_SIZE__)
+    bne BssClear
+    lda ser_pointer
+    cmp #<(__BSS_LOAD__+__BSS_SIZE__)
+    beq BssDone
+BssClear:
+    tya                     ; Y=0
+    sta (ser_pointer),y
+    inc ser_pointer
+    bne BssLoop
+    inc ser_pointer+1
+    jmp BssLoop
+BssDone:
+    ldx #0
+    tya
+ZpLoop:
+    sta (<__ZEROPAGE_LOAD__),y
+    inx
+    cpx #<__ZEROPAGE_SIZE__
+    bne ZpLoop
+    .import __BSS_LOAD__,__BSS_SIZE__,__ZEROPAGE_LOAD__,__ZEROPAGE_SIZE__
+; ~/~ end
+    jsr SetupIrq
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[init]
+    ldx #0
+OpenLoop:
+    lda open_msg,x
+    sta atn_buffer,x
+    inx
+    cpx #open_msg_end-open_msg
+    bne OpenLoop
+    lda #0
+    sta atn_index               ; clear byte index into ATN array
+    stx atn_bytes               ; write the length of the message
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[1]
+    jsr WaitATN
+; ~/~ end
+; ~/~ begin <<atntest.md#run-test>>[2]
+; ~/~ end
+.endproc
+; ~/~ end
+
+; ~/~ begin <<atntest.md#data>>[init]
+    .rodata
+open_msg:
+    .byte LISTEN+8,OPEN+2,"@0:FOO,S,W"
+open_msg_end:
+    .export open_msg, open_msg_end
+; ~/~ end
+; ~/~ begin <<atntest.md#data>>[1]
+file_data:
+    .byte "BAR",0
+file_data_end:
+    .export file_data,file_data_end
 ; ~/~ end
 ; ~/~ end

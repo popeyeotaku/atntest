@@ -633,6 +633,113 @@ TimeIn:
 .endproc
 ```
 
+### The Test Itself
+
+So, let's test something!
+
+We'll use the label `Start` as our *main* entry point.
+
+```{.asm6502 #main}
+    .export Start
+.proc Start
+<<init-test>>
+<<run-test>>
+.endproc
+```
+
+We'll intialize by clearing RAM, then setting up our IRQ.
+
+```{.asm6502 #init-test}
+<<clear-bss>>
+    jsr SetupIrq
+```
+
+```{.asm6502 #clear-bss}
+    lda #<__BSS_LOAD__
+    sta ser_pointer
+    lda #>__BSS_LOAD__
+    sta ser_pointer+1
+    ldy #0
+BssLoop:
+    lda ser_pointer+1
+    cmp #>(__BSS_LOAD__+__BSS_SIZE__)
+    bne BssClear
+    lda ser_pointer
+    cmp #<(__BSS_LOAD__+__BSS_SIZE__)
+    beq BssDone
+BssClear:
+    tya                     ; Y=0
+    sta (ser_pointer),y
+    inc ser_pointer
+    bne BssLoop
+    inc ser_pointer+1
+    jmp BssLoop
+BssDone:
+    ldx #0
+    tya
+ZpLoop:
+    sta (<__ZEROPAGE_LOAD__),y
+    inx
+    cpx #<__ZEROPAGE_SIZE__
+    bne ZpLoop
+    .import __BSS_LOAD__,__BSS_SIZE__,__ZEROPAGE_LOAD__,__ZEROPAGE_SIZE__
+```
+
+To actually run the test, we'll start by writing an ATN command to open a disk file.
+
+```{.asm6502 #data}
+    .rodata
+open_msg:
+    .byte LISTEN+8,OPEN+2,"@0:FOO,S,W"
+open_msg_end:
+    .export open_msg, open_msg_end
+```
+
+```{.asm6502 #constants}
+OPEN = $F0
+```
+
+```{.asm6502 #run-test}
+    ldx #0
+OpenLoop:
+    lda open_msg,x
+    sta atn_buffer,x
+    inx
+    cpx #open_msg_end-open_msg
+    bne OpenLoop
+    lda #0
+    sta atn_index               ; clear byte index into ATN array
+    stx atn_bytes               ; write the length of the message
+```
+
+We'll wait for the ATN command to be finished.
+
+```{.asm6502 #run-test}
+    jsr WaitATN
+```
+
+```{.asm6502 #subrs}
+    .export WaitATN
+.proc WaitATN
+    lda atn_bytes
+    bne WaitATN
+    rts
+.endproc
+```
+
+Now, we'll write the file data.
+
+```{.asm6502 #data}
+file_data:
+    .byte "BAR",0
+file_data_end:
+    .export file_data,file_data_end
+```
+
+```{.asm6502 #run-test}
+
+```
+
 ## Building
 
 Let's put together our whole source file.
@@ -650,6 +757,10 @@ Let's put together our whole source file.
 <<setup_irq>>
 
 <<subrs>>
+
+<<main>>
+
+<<data>>
 ```
 
 CA65 requires a linker config file.
@@ -662,7 +773,7 @@ MEMORY {
 }
 
 SEGMENTS {
-    ZEROPAGE: load = ZEROPAGE, type = zp;
+    ZEROPAGE: load = ZEROPAGE, type = zp, define = yes;
     PRG_ADDR: load = PRG_ADDR, type = ro;
     BASIC_HEADER: load = RAM, type = ro;
     CODE: load = RAM, type = ro;
