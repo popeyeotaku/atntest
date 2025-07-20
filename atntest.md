@@ -594,16 +594,15 @@ To handle this, we first check if `target_line` is less than `start_line`. If no
 Let's work through some test cases to check.
 
 - If we start on line 10, and our target line is 102:
-    - If we start our check still on line 10, we don't timeout since cur_line >= `start_line`.
-    - If we check on lines 11-101, we don't timeout since `cur_line` < `target_line` and >= `start_line`.
-    - If we check on lines 102-255, we successfully timeout, since `cur_line` >= `start_line` and not < `target_line`.
-    - If we check on lines 0-9, we successfully timeout, since `cur_line` is not >= `start_line`. If we used an `||` instead of an `&&`, we would fail to timeout -- since we're still < `target_line`.
+  - If we start our check still on line 10, we don't timeout since cur_line >= `start_line`.
+  - If we check on lines 11-101, we don't timeout since `cur_line` < `target_line` and >= `start_line`.
+  - If we check on lines 102-255, we successfully timeout, since `cur_line` >= `start_line` and not < `target_line`.
+  - If we check on lines 0-9, we successfully timeout, since `cur_line` is not >= `start_line`. If we used an `||` instead of an `&&`, we would fail to timeout -- since we're still < `target_line`.
 - If we start on line 254, and our target line is rolled over to 90:
-    - If we start our check still on line 254, we don't timeout since `cur_line` >= `start_line`.
-    - If we check on line 255, we don't timeout, since `cur_line` >= `start_line`. If we used an `&&` instead of an `||`, we'd accidentally timeout here -- since `cur_line` is not < `target_line`.
-    - If we check on lines 0-89, we don't timeout, since `cur_line` < `target_line`. If we used an `&&` instead of an `||`, we'd accidentally timeout here -- since `cur_line` is not >= `start_line`.
-    - If we check on lines 90-253, we'd successfully timeout, since `cur_line` is not < `target_line` *or* >= `start_line`.
-```
+  - If we start our check still on line 254, we don't timeout since `cur_line` >= `start_line`.
+  - If we check on line 255, we don't timeout, since `cur_line` >= `start_line`. If we used an `&&` instead of an `||`, we'd accidentally timeout here -- since `cur_line` is not < `target_line`.
+  - If we check on lines 0-89, we don't timeout, since `cur_line` < `target_line`. If we used an `&&` instead of an `||`, we'd accidentally timeout here -- since `cur_line` is not >= `start_line`.
+  - If we check on lines 90-253, we'd successfully timeout, since `cur_line` is not < `target_line` *or* >= `start_line`.
 
 ```{.asm6502 #subrs}
 ; Return carry clear if we've timed out on our xfer time, carry set otherwise.
