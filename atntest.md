@@ -391,7 +391,7 @@ We want to install our IRQ handler, and make sure that whatever IRQ handler that
     lda #<MyIrq             ; store ours!
     sta IRQ_VECTOR
     lda #>MyIrq
-    sta IRQ_VECTOR
+    sta IRQ_VECTOR+1
     plp                     ; restore interrupt flags, since they're now safe to occur
     rts
 .endproc
@@ -877,7 +877,7 @@ Let's make our Makefile:
 OBJECTS = boot.o atntest.o
 
 atntest.prg atntest.ll: $(OBJECTS) atntest.cfg
-	ld65 -o atntest.prg -C atntest.cfg $(OBJECTS)
+	ld65 -Ln atntest.ll -o atntest.prg -C atntest.cfg $(OBJECTS)
 
 %.o: %.s
 	ca65 -o $@ $*.s

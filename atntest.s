@@ -269,7 +269,7 @@ XferDone:
     lda #<MyIrq             ; store ours!
     sta IRQ_VECTOR
     lda #>MyIrq
-    sta IRQ_VECTOR
+    sta IRQ_VECTOR+1
     plp                     ; restore interrupt flags, since they're now safe to occur
     rts
 .endproc
