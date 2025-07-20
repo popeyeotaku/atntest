@@ -74,6 +74,7 @@ Plus those line variables.
 ```{.asm6502 #variables}
 start_line:  .res 2
 target_line: .res 2
+    .export start_line,target_line
 ```
 
 ### The Transfer
@@ -360,6 +361,7 @@ WriteZero:
     jsr ClkOn
     jsr DataOff
     jsr Wait1kUs
+    sec
 ```
 
 And, we're done!
@@ -479,7 +481,8 @@ Now, it's time to actually write them. I still can't remember as I write this, s
 ```{.asm6502 #constants}
 TRUE = $FF
 FALSE = 0
-ACTIVE_HI = FALSE
+ACTIVE_1_OUT = TRUE
+ACTIVE_1_IN = FALSE
 ```
 
 I'll also define the register used on the Complex Interface Adapter (CIA for short, *haha*) that I use to access these bits.
@@ -501,26 +504,27 @@ DATA_IN = 1<<7
 Now for the macros to set/reset the bits.
 
 ```{.asm6502 #macros}
-.if ACTIVE_HI = TRUE
-    .mac bit_on bitf
+.if ACTIVE_1_OUT = TRUE
+ACTIVE_HI_IN = TRUE
+    .mac bit_on b
         lda CIA_PORT
-        ora #bit
+        ora #b
         sta CIA_PORT
     .endmac
-    .mac bit_off bit
+    .mac bit_off b
         lda CIA_PORT
-        and #<~bit
+        and #<~b
         sta CIA_PORT
     .endmac
 .else
-    .mac bit_on bit
+    .mac bit_on b
         lda CIA_PORT
-        and #<~bit
+        and #<~b
         sta CIA_PORT
     .endmac
-    .mac bit_off bit
+    .mac bit_off b
         lda CIA_PORT
-        ora #bit
+        ora #b
         sta CIA_PORT
     .endmac
 .endif
@@ -555,7 +559,7 @@ We'll also have a set of routines for handling the input side of the port.
 This routine waits for the readers to be ready, returning early if we've taken too much time. As mentioned earlier, this early exit is indicated by returning with carry clear; carry is set if we're good to transfer. Since the `DATA_IN` bit is in bit7 of the port, we can check it via the `BIT` instruction, which will place bit7 into the negative flag.
 
 ```{.asm6502 #constants}
-WRITE_ON_DATA_LO = TRUE
+WRITE_ON_DATA_LO = !ACTIVE_1_IN
 ```
 
 It turned out that the `.if` didn't work if `WaitWrite` was defined as a *CA65* `proc` (which allow for local labels), so I wrote it as a plain label with an anonymous branch target instead.
