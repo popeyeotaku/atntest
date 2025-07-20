@@ -424,6 +424,86 @@ loop:
 .endproc
 ```
 
+##### The Serial Signal Routines
+
+I can never remember the Commodore serial bus signals -- ATN, CLK, DATA -- should be active 1 or active 0. Hence, my usage of the generic `ClkOn`/`ClkOff` style commands thruout.
+
+Now, it's time to actually write them. I still can't remember as I write this, so I'll define a flag for which way the bits should go. That way, it's easy to change if I mix it up.
+
+```{.asm6502 #constants}
+TRUE = $FF
+FALSE = 0
+ACTIVE_HI = FALSE
+```
+
+I'll also define the register used on the Complex Interface Adapter (CIA for short, *haha*) that I use to access these bits.
+
+```{.asm6502 #constants}
+CIA_PORT = $DD00
+```
+
+And the bits themselves.
+
+```{.asm6502 #constants}
+ATN_OUT = 1<<3
+CLK_OUT = 1<<4
+DATA_OUT = 1<<5
+CLK_IN = 1<<6
+DATA_IN = 1<<7
+```
+
+Now for the macros to set/reset the bits.
+
+```{.asm6502 #macros}
+.if ACTIVE_HI = TRUE
+    .mac bit_on bit
+        lda CIA_PORT
+        ora #bit
+        sta CIA_PORT
+    .endmac
+    .mac bit_off bit
+        lda CIA_PORT
+        and #<~bit
+        sta CIA_PORT
+    .endmac
+.else
+    .mac bit_on bit
+        lda CIA_PORT
+        and #<~bit
+        sta CIA_PORT
+    .endmac
+    .mac bit_off bit
+        lda CIA_PORT
+        ora #bit
+        sta CIA_PORT
+    .endmac
+.endif
+```
+
+Now for the actual routines themselves.
+
+```{.asm6502 #subrs}
+AtnOn:
+    bit_on ATN_OUT
+    rts
+AtnOff:
+    bit_off ATN_OUT
+    rts
+ClkOn:
+    bit_on CLK_OUT
+    rts
+ClkOff:
+    bit_off CLK_OUT
+    rts
+DataOn:
+    bit_on DATA_OUT
+    rts
+DataOff:
+    bit_off DATA_OUT
+    rts
+.export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
+```
+
 ## Building
 
 Let's put together our whole source file.
@@ -431,6 +511,8 @@ Let's put together our whole source file.
 ```{.asm6502 file=atntest.s}
 
 <<constants>>
+
+<<macros>>
 
 <<variables>>
 

@@ -22,6 +22,47 @@ SECOND = $60
 ; ~/~ begin <<atntest.md#constants>>[5]
 UNLISTEN = $3F
 ; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[6]
+TRUE = $FF
+FALSE = 0
+ACTIVE_HI = FALSE
+; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[7]
+CIA_PORT = $DD00
+; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[8]
+ATN_OUT = 1<<3
+CLK_OUT = 1<<4
+DATA_OUT = 1<<5
+CLK_IN = 1<<6
+DATA_IN = 1<<7
+; ~/~ end
+
+; ~/~ begin <<atntest.md#macros>>[init]
+.if ACTIVE_HI = TRUE
+    .mac bit_on bit
+        lda CIA_PORT
+        ora #bit
+        sta CIA_PORT
+    .endmac
+    .mac bit_off bit
+        lda CIA_PORT
+        and #<~bit
+        sta CIA_PORT
+    .endmac
+.else
+    .mac bit_on bit
+        lda CIA_PORT
+        and #<~bit
+        sta CIA_PORT
+    .endmac
+    .mac bit_off bit
+        lda CIA_PORT
+        ora #bit
+        sta CIA_PORT
+    .endmac
+.endif
+; ~/~ end
 
 ; ~/~ begin <<atntest.md#variables>>[init]
     .bss
@@ -275,5 +316,26 @@ loop:
     nop         ; +2 cycles=54
     rts         ; +6 cycles = 60
 .endproc
+; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[3]
+AtnOn:
+    bit_on ATN_OUT
+    rts
+AtnOff:
+    bit_off ATN_OUT
+    rts
+ClkOn:
+    bit_on CLK_OUT
+    rts
+ClkOff:
+    bit_off CLK_OUT
+    rts
+DataOn:
+    bit_on DATA_OUT
+    rts
+DataOff:
+    bit_off DATA_OUT
+    rts
+.export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
 ; ~/~ end
 ; ~/~ end
