@@ -1,7 +1,7 @@
 ; ~/~ begin <<atntest.md#atntest.s>>[init]
 
 ; ~/~ begin <<atntest.md#constants>>[init]
-vic_scanline = $D012
+VIC_SCANLINE = $D012
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[1]
 CYCLES_PER_LINE=65 ; on NTSC, PAL is 63
@@ -36,6 +36,9 @@ CLK_OUT = 1<<4
 DATA_OUT = 1<<5
 CLK_IN = 1<<6
 DATA_IN = 1<<7
+; ~/~ end
+; ~/~ begin <<atntest.md#constants>>[9]
+WRITE_ON_DATA_LO = TRUE
 ; ~/~ end
 
 ; ~/~ begin <<atntest.md#macros>>[init]
@@ -118,7 +121,7 @@ old_irq: .res 2
     .code
     .export MyIrq
 .proc MyIrq
-    lda vic_scanline
+    lda VIC_SCANLINE
     sta start_line
     clc
     adc #LINES_FOR_XFER
@@ -318,6 +321,7 @@ loop:
 .endproc
 ; ~/~ end
 ; ~/~ begin <<atntest.md#subrs>>[3]
+.code
 AtnOn:
     bit_on ATN_OUT
     rts
@@ -337,5 +341,22 @@ DataOff:
     bit_off DATA_OUT
     rts
 .export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
+; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[4]
+.code
+.export WaitWrite
+WaitWrite:
+    .assert DATA_IN = $80,error,"DATA_IN isn't in bit7"
+    jsr CheckScanline
+    bcc :+
+    bit CIA_PORT
+    .if WRITE_ON_DATA_LO = TRUE
+        bmi WaitWrite
+    .else
+        bpl WaitWrite
+    .endif
+    sec ; we're good to write!
+:
+    rts
 ; ~/~ end
 ; ~/~ end

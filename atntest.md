@@ -44,7 +44,7 @@ Let's write our own set of serial routines. Let's set-up our high level interrup
     .code
     .export MyIrq
 .proc MyIrq
-    lda vic_scanline
+    lda VIC_SCANLINE
     sta start_line
     clc
     adc #LINES_FOR_XFER
@@ -59,7 +59,7 @@ Let's write our own set of serial routines. Let's set-up our high level interrup
 We need to define the scanline register.
 
 ```{.asm6502 #constants}
-vic_scanline = $D012
+VIC_SCANLINE = $D012
 ```
 
 And the number of lines we intend to use this go-round.
@@ -483,6 +483,7 @@ Now for the macros to set/reset the bits.
 Now for the actual routines themselves.
 
 ```{.asm6502 #subrs}
+.code
 AtnOn:
     bit_on ATN_OUT
     rts
@@ -502,6 +503,34 @@ DataOff:
     bit_off DATA_OUT
     rts
 .export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
+```
+
+We'll also have a set of routines for handling the input side of the port.
+
+This routine waits for the readers to be ready, returning early if we've taken too much time. As mentioned earlier, this early exit is indicated by returning with carry clear; carry is set if we're good to transfer. Since the `DATA_IN` bit is in bit7 of the port, we can check it via the `BIT` instruction, which will place bit7 into the negative flag.
+
+```{.asm6502 #constants}
+WRITE_ON_DATA_LO = TRUE
+```
+
+It turned out that the `.if` didn't work if `WaitWrite` was defined as a *CA65* `proc` (which allow for local labels), so I wrote it as a plain label with an anonymous branch target instead.
+
+```{.asm6502 #subrs}
+.code
+.export WaitWrite
+WaitWrite:
+    .assert DATA_IN = $80,error,"DATA_IN isn't in bit7"
+    jsr CheckScanline
+    bcc :+
+    bit CIA_PORT
+    .if WRITE_ON_DATA_LO = TRUE
+        bmi WaitWrite
+    .else
+        bpl WaitWrite
+    .endif
+    sec ; we're good to write!
+:
+    rts
 ```
 
 ## Building
@@ -561,13 +590,8 @@ null_line:
 
 Let's make our Makefile:
 
-```{.make file=Makefile}
+```{.make #makefile}
 OBJECTS = boot.o atntest.o
-
-all: atntest.prg
-
-clean:
-	rm -f atntest.prg atntest.ll $(OBJECTS)
 
 atntest.prg atntest.ll: $(OBJECTS) atntest.cfg
 	ld65 -o atntest.prg -C atntest.cfg $(OBJECTS)
@@ -579,8 +603,19 @@ atntest.prg atntest.ll: $(OBJECTS) atntest.cfg
 But, just for fun, we'll add a make target to generate a nice PDF via pandoc.
 
 ```{.make file=Makefile}
+.PHONY: all clean pdf
+
+all: atntest.pdf atntest.prg
+
+clean:
+	rm -f atntest.prg atntest.ll $(OBJECTS) atntest.pdf
+
+pdf: atntest.pdf
+
 atntest.pdf: atntest.md
 	pandoc -o atntest.pdf --filter pandoc-annotate-codeblocks atntest.md
+
+<<makefile>>
 ```
 
 ## Conclusion
