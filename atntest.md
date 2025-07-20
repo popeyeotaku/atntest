@@ -66,7 +66,7 @@ And the number of lines we intend to use this go-round.
 
 ```{.asm6502 #constants}
 CYCLES_PER_LINE=65 ; on NTSC, PAL is 63
-TARGET_MICROSECONDS = 6000
+TARGET_MICROSECONDS = 10000
 LINES_FOR_XFER = TARGET_MICROSECONDS / CYCLES_PER_LINE
 ```
 
@@ -118,7 +118,9 @@ XferLoop:
     lda atn_bytes   ; check if we have any ATN command bytes we wanna send
     bne SendAtn
     lda ser_bytes   ; check if we have any normal data bytes we wanna send
-    beq XferDone
+    bne :+
+    jmp XferDone
+:
 <<read_or_write>>
     jmp XferLoop
 SendAtn:

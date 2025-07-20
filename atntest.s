@@ -5,7 +5,7 @@ VIC_SCANLINE = $D012
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[1]
 CYCLES_PER_LINE=65 ; on NTSC, PAL is 63
-TARGET_MICROSECONDS = 6000
+TARGET_MICROSECONDS = 10000
 LINES_FOR_XFER = TARGET_MICROSECONDS / CYCLES_PER_LINE
 ; ~/~ end
 ; ~/~ begin <<atntest.md#constants>>[2]
@@ -135,7 +135,9 @@ XferLoop:
     lda atn_bytes   ; check if we have any ATN command bytes we wanna send
     bne SendAtn
     lda ser_bytes   ; check if we have any normal data bytes we wanna send
-    beq XferDone
+    bne :+
+    jmp XferDone
+:
 ; ~/~ begin <<atntest.md#read_or_write>>[init]
     .assert READ>=$80 && WRITE<$80,error,"expect to BIT a r/w flag"
     bit ser_rw
