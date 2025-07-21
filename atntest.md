@@ -368,7 +368,8 @@ WriteZero:
     bne WriteLoop
     jsr ClkOn
     jsr DataOff
-    jsr Wait1kUs
+    jsr Wait1kUs        ; for LISTENers to have time to respond "not ready"
+    jsr Wait100Us       ; minimum "between bytes time"
     sec
 ```
 
@@ -435,6 +436,25 @@ Loop:
     ; 8+8*5+4=52
     nop         ; +2 cycles=54
     rts         ; +6 cycles = 60
+.endproc
+```
+
+```{.asm6502 #subrs}
+    .export Wait100Us
+.proc Wait100Us
+    ; 6 cycles to JSR here
+    ldy #17         ; +2
+Loop:
+    dey             ; +2
+    bne Loop        ; +3 cycles while taken, +2 when falling thru
+    ; last loop thru took 4 cycles, rest took 5
+    ; 8+5*(y-1)+4=100-6
+    ; 5*(y-1)=94-8-4
+    ; y-1=82/5
+    ; y=16.4+1
+    ; 8+5*(17-1)+4=92
+    nop             ; 92+2=94
+    rts             ; 96+6=100
 .endproc
 ```
 
@@ -576,13 +596,15 @@ It turned out that the `.if` didn't work if `WaitWrite` was defined as a *CA65* 
 .export WaitWrite
 WaitWrite:
     .assert DATA_IN = $80,error,"DATA_IN isn't in bit7"
+    jsr DataOff         ; ensure we're getting our DATA from the LISTENers
+WaitLoop:
     jsr CheckScanline
     bcc :+
     bit CIA_PORT
     .if WRITE_ON_DATA_LO = TRUE
-        bmi WaitWrite
+        bmi WaitLoop
     .else
-        bpl WaitWrite
+        bpl WaitLoop
     .endif
     sec ; we're good to write!
 :

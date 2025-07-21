@@ -398,7 +398,8 @@ WriteZero:
     bne WriteLoop
     jsr ClkOn
     jsr DataOff
-    jsr Wait1kUs
+    jsr Wait1kUs        ; for LISTENers to have time to respond "not ready"
+    jsr Wait100Us       ; minimum "between bytes time"
     sec
 ; ~/~ end
 WriteDone:
@@ -420,6 +421,24 @@ Loop:
 .endproc
 ; ~/~ end
 ; ~/~ begin <<atntest.md#subrs>>[3]
+    .export Wait100Us
+.proc Wait100Us
+    ; 6 cycles to JSR here
+    ldy #17         ; +2
+Loop:
+    dey             ; +2
+    bne Loop        ; +3 cycles while taken, +2 when falling thru
+    ; last loop thru took 4 cycles, rest took 5
+    ; 8+5*(y-1)+4=100-6
+    ; 5*(y-1)=94-8-4
+    ; y-1=82/5
+    ; y=16.4+1
+    ; 8+5*(17-1)+4=92
+    nop             ; 92+2=94
+    rts             ; 96+6=100
+.endproc
+; ~/~ end
+; ~/~ begin <<atntest.md#subrs>>[4]
     .export Wait256Us
 .proc Wait256Us
     ; 6 cycles to JSR here
@@ -438,7 +457,7 @@ Loop:
     rts             ; +6 cycles=255, which is close enough
 .endproc
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[4]
+; ~/~ begin <<atntest.md#subrs>>[5]
     .export Wait1kUs
 .proc Wait1kUs
     ; 6 cycles to JSR here
@@ -459,7 +478,7 @@ Loop:
     rts             ; +6 cycles on exit
 .endproc
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[5]
+; ~/~ begin <<atntest.md#subrs>>[6]
 AtnOn:
     bit_on ATN_OUT
     rts
@@ -480,23 +499,25 @@ DataOff:
     rts
 .export AtnOn,AtnOff,ClkOn,ClkOff,DataOn,DataOff
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[6]
+; ~/~ begin <<atntest.md#subrs>>[7]
 .export WaitWrite
 WaitWrite:
     .assert DATA_IN = $80,error,"DATA_IN isn't in bit7"
+    jsr DataOff         ; ensure we're getting our DATA from the LISTENers
+WaitLoop:
     jsr CheckScanline
     bcc :+
     bit CIA_PORT
     .if WRITE_ON_DATA_LO = TRUE
-        bmi WaitWrite
+        bmi WaitLoop
     .else
-        bpl WaitWrite
+        bpl WaitLoop
     .endif
     sec ; we're good to write!
 :
     rts
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[7]
+; ~/~ begin <<atntest.md#subrs>>[8]
 ; Return carry clear if we've timed out on our xfer time, carry set otherwise.
 .export CheckScanline
 .proc CheckScanline
@@ -523,7 +544,7 @@ TimeIn:
     rts
 .endproc
 ; ~/~ end
-; ~/~ begin <<atntest.md#subrs>>[8]
+; ~/~ begin <<atntest.md#subrs>>[9]
     .export PrintScreen
 .proc PrintScreen
     ldx #0
